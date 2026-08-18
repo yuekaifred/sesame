@@ -20,21 +20,17 @@
     }
 
     #feed {
-      position: relative;
       width: 100%;
       height: 100vh;
-      overflow: hidden;
     }
 
     .slide {
-      position: absolute;
-      inset: 0;
+      width: 100%;
+      height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 12px;
-      transform: translateY(0);
-      transition: transform 0.4s ease;
     }
 
     .slide img {
@@ -42,6 +38,29 @@
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
+    }
+
+    #feed.touch-mode {
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #feed.touch-mode .slide {
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+    }
+
+    #feed.desktop-mode {
+      position: relative;
+      overflow: hidden;
+    }
+
+    #feed.desktop-mode .slide {
+      position: absolute;
+      inset: 0;
+      transform: translateY(0);
+      transition: transform 0.4s ease;
     }
   </style>
 </head>
@@ -52,84 +71,78 @@
   <script>
     const feed = document.getElementById('feed');
     const IMAGES = ['devious.jpeg', 'gaze.jpeg', 'polite.jpeg', 'crazy.jpeg', 'scared.jpeg'];
-
-    let index = 0;
-    let animating = false;
-    let scrollAccum = 0;
-    const THRESHOLD = 150;
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
 
     function makeSlide(name) {
       const slide = document.createElement('div');
       slide.className = 'slide';
       const img = document.createElement('img');
       img.src = `images/${name}`;
+      img.loading = 'lazy';
       slide.appendChild(img);
       return slide;
     }
 
-    let current = makeSlide(IMAGES[index]);
-    feed.appendChild(current);
-
-    function goTo(nextIndex, direction) {
-      animating = true;
-      const next = makeSlide(IMAGES[nextIndex]);
-      next.style.transition = 'none';
-      next.style.transform = `translateY(${direction * 100}%)`;
-      feed.appendChild(next);
-      next.offsetHeight;
-
-      requestAnimationFrame(() => {
-        next.style.transition = 'transform 0.4s ease';
-        current.style.transform = `translateY(${-direction * 100}%)`;
-        next.style.transform = 'translateY(0)';
-      });
-
-      current.addEventListener('transitionend', function handler() {
-        current.removeEventListener('transitionend', handler);
-        current.remove();
-        current = next;
-        index = nextIndex;
-        animating = false;
-      }, {once: true});
-    }
-
-    function goNext() {
-      goTo((index + 1) % IMAGES.length, 1);
-    }
-
-    function goPrev() {
-      goTo((index - 1 + IMAGES.length) % IMAGES.length, -1);
-    }
-
-    window.addEventListener('wheel', (e) => {
-      if (animating) return;
-      scrollAccum += e.deltaY;
-      if (scrollAccum >= THRESHOLD) {
-        scrollAccum = 0;
-        goNext();
-      } else if (scrollAccum <= -THRESHOLD) {
-        scrollAccum = 0;
-        goPrev();
+    if (isTouch) {
+      feed.classList.add('touch-mode');
+      const REPEATS = 6;
+      for (let r = 0; r < REPEATS; r++) {
+        IMAGES.forEach(name => feed.appendChild(makeSlide(name)));
       }
-    }, {passive: true});
+    } else {
+      feed.classList.add('desktop-mode');
 
-    let touchStartY = null;
+      let index = 0;
+      let animating = false;
+      let scrollAccum = 0;
+      const THRESHOLD = 150;
 
-    window.addEventListener('touchstart', (e) => {
-      if (animating) return;
-      touchStartY = e.touches[0].clientY;
-    }, {passive: true});
+      let current = makeSlide(IMAGES[index]);
+      feed.appendChild(current);
 
-    window.addEventListener('touchend', (e) => {
-      if (animating || touchStartY === null) return;
-      const deltaY = touchStartY - e.changedTouches[0].clientY;
-      touchStartY = null;
-      if (deltaY >= THRESHOLD) {
-        goNext();
-      } else if (deltaY <= -THRESHOLD) {
-        goPrev();
+      function goTo(nextIndex, direction) {
+        animating = true;
+        const next = makeSlide(IMAGES[nextIndex]);
+        next.style.transition = 'none';
+        next.style.transform = `translateY(${direction * 100}%)`;
+        feed.appendChild(next);
+        next.offsetHeight;
+
+        requestAnimationFrame(() => {
+          next.style.transition = 'transform 0.4s ease';
+          current.style.transform = `translateY(${-direction * 100}%)`;
+          next.style.transform = 'translateY(0)';
+        });
+
+        current.addEventListener('transitionend', function handler() {
+          current.removeEventListener('transitionend', handler);
+          current.remove();
+          current = next;
+          index = nextIndex;
+          animating = false;
+        }, {once: true});
       }
-    }, {passive: true});
+
+      function goNext() {
+        goTo((index + 1) % IMAGES.length, 1);
+      }
+
+      function goPrev() {
+        goTo((index - 1 + IMAGES.length) % IMAGES.length, -1);
+      }
+
+      window.addEventListener('wheel', (e) => {
+        if (animating) return;
+        scrollAccum += e.deltaY;
+        if (scrollAccum >= THRESHOLD) {
+          scrollAccum = 0;
+          goNext();
+        } else if (scrollAccum <= -THRESHOLD) {
+          scrollAccum = 0;
+          goPrev();
+        }
+      }, {passive: true});
+    }
   </script>
 </body>
 
