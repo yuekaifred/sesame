@@ -97,10 +97,25 @@
       let scrollAccum = 0;
       const THRESHOLD = 150;
 
+      const preloaded = new Set();
+
+      function preload(i) {
+        const name = IMAGES[i % IMAGES.length];
+        if (preloaded.has(name)) return;
+        preloaded.add(name);
+        new Image().src = `images/${name}`;
+      }
+
+      preload(index);
+      preload(index + 1);
+      preload(index - 1);
+
       let current = makeSlide(IMAGES[index]);
       feed.appendChild(current);
 
       function goTo(nextIndex, direction) {
+        preload(nextIndex + 1);
+        preload(nextIndex - 1);
         animating = true;
         const next = makeSlide(IMAGES[nextIndex]);
         next.style.transition = 'none';
