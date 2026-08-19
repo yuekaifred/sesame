@@ -62,20 +62,86 @@
       transform: translateY(0);
       transition: transform 0.4s ease;
     }
-  </style>
+
+    #sound-cta {
+      position: fixed;
+      left: 50%;
+      bottom: 8%;
+      transform: translateX(-50%);
+      z-index: 10;
+      padding: 12px 20px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      font: 700 clamp(16px, 4vw, 26px)/1 system-ui, sans-serif;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      pointer-events: none;
+      animation: cta-pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes cta-pulse {
+      0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+      50% { opacity: 0.55; transform: translateX(-50%) scale(0.94); }
+    }
+</style>
 </head>
 
 <body>
   <div id="feed"></div>
+  <div id="sound-cta"></div>
 
   <script>
     const feed = document.getElementById('feed');
     const IMAGES = ['devious.jpeg', 'gaze.jpeg', 'polite.jpeg', 'crazy.jpeg', 'scared.jpeg'];
     const isTouch = window.matchMedia('(pointer: coarse)').matches;
 
+    const START = { devious: 0, gaze: 0, polite: 0, crazy: 0, scared: 0 };
+    const moodOf = name => name.replace(/\.jpeg$/, '');
+
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.loop = false;
+    let currentMood = null;
+    let soundEnabled = false;
+
+    function seekToStart() {
+      try { audio.currentTime = START[currentMood] || 0; } catch (e) {}
+    }
+
+    function setMood(mood) {
+      if (mood === currentMood) return;
+      currentMood = mood;
+      audio.src = `audio/${mood}.mp4`;
+      audio.load();
+      audio.addEventListener('loadedmetadata', function h() {
+        audio.removeEventListener('loadedmetadata', h);
+        seekToStart();
+        if (soundEnabled) audio.play().catch(() => {});
+      });
+    }
+
+    audio.addEventListener('ended', () => {
+      seekToStart();
+      if (soundEnabled) audio.play().catch(() => {});
+    });
+
+    const cta = document.getElementById('sound-cta');
+    cta.textContent = isTouch ? 'TAP FOR SOUND!!' : 'CLICK FOR SOUND!!';
+
+    function enableSound() {
+      if (soundEnabled) return;
+      soundEnabled = true;
+      cta.remove();
+      audio.play().catch(() => {});
+    }
+    document.addEventListener('click', enableSound);
+    document.addEventListener('touchstart', enableSound, { passive: true });
+
     function makeSlide(name) {
       const slide = document.createElement('div');
       slide.className = 'slide';
+      slide.dataset.mood = moodOf(name);
       const img = document.createElement('img');
       img.src = `images/${name}`;
       img.loading = 'lazy';
@@ -85,10 +151,31 @@
 
     if (isTouch) {
       feed.classList.add('touch-mode');
-      const REPEATS = 6;
-      for (let r = 0; r < REPEATS; r++) {
-        IMAGES.forEach(name => feed.appendChild(makeSlide(name)));
+
+      const io = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          if (e.isIntersecting && e.intersectionRatio >= 0.6) {
+            setMood(e.target.dataset.mood);
+          }
+        });
+      }, { threshold: [0.6] });
+
+      function appendBatch() {
+        IMAGES.forEach(name => {
+          const s = makeSlide(name);
+          feed.appendChild(s);
+          io.observe(s);
+        });
       }
+
+      for (let r = 0; r < 3; r++) appendBatch();
+      setMood(moodOf(IMAGES[0]));
+
+      feed.addEventListener('scroll', () => {
+        if (feed.scrollTop + feed.clientHeight * 3 >= feed.scrollHeight) {
+          appendBatch();
+        }
+      }, { passive: true });
     } else {
       feed.classList.add('desktop-mode');
 
@@ -112,8 +199,10 @@
 
       let current = makeSlide(IMAGES[index]);
       feed.appendChild(current);
+      setMood(moodOf(IMAGES[index]));
 
       function goTo(nextIndex, direction) {
+        setMood(moodOf(IMAGES[nextIndex]));
         preload(nextIndex + 1);
         preload(nextIndex - 1);
         animating = true;
